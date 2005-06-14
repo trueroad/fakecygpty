@@ -216,8 +216,10 @@ int main (int argc, char* argv[])
       if ((ret = read (0, buf, BUFSIZE)) > 0) {
 	write (masterfd, buf, ret);
       }
-      if (ret <= 0)
+      if (ret <= 0) {
 	  FD_CLR (0, &sel0);
+	  close (masterfd);
+      }
     }
   }
 
