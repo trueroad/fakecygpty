@@ -25,6 +25,7 @@
  * -------
  *
  *    09 Jun, 2005 : Version 1.0.0 - first release.
+ *    15 Jun, 2005 : Version 1.0.1 - bug fix and change coding style.
  */
 
 /*
@@ -46,44 +47,56 @@
 #define MY_NAME "fakecygpty"
 
 /* global variables */
-int child_pid;
-int masterfd;
+int child_pid;		/* pid of child proces  */
+int masterfd;		/* fd of pty served to child process */
 
 /* Create pty and fork/exec target process */
 /* This function sets child_pid and masterfd */
-void exec_target(char* argv[])
+void
+exec_target(char* argv[])
 {
   int fd;
   int pid;
-
-  if ((masterfd = open ("/dev/ptmx", O_RDWR)) < 0) {
-    perror("Cannot open pseudo tty");
-    exit (1);
-  }
-    
-  if ((pid = fork ()) < 0) {
-    perror("Failed to fork");
-    return;
-  }
-
-  if (pid == 0) {
-    int slave;
-
-    setsid();
-    if ((slave = open (ptsname (masterfd), O_RDWR)) < 0) {
-      perror ("Failed to open slave fd");
-      exit(1);
+  
+  masterfd = open ("/dev/ptmx", O_RDWR);
+  if (masterfd < 0)
+    {
+      perror("Cannot open pseudo tty");
+      exit (1);
     }
 
-    for (fd = 0; fd < 3; fd++) {
-      if (slave != fd) {
-	if (dup2 (slave, fd) < 0) {
-	  perror ("Failed to dup2");
-	  exit(1);
+  pid = fork ();
+  if (pid < 0)
+    {
+      perror ("Failed to fork");
+      return;
+    }
+
+  if (pid == 0)
+    {
+      int slave;
+      
+      setsid();
+
+      slave = open (ptsname (masterfd), O_RDWR);
+      if (slave < 0)
+	{
+	  perror ("Failed to open slave fd");
+	  exit (1);
 	}
+
+    for (fd = 0 ; fd < 3 ; fd++)
+      {
+	if (slave != fd)
+	  {
+	    if (dup2 (slave, fd) < 0)
+	      {
+		perror ("Failed to dup2");
+		exit (1);
+	      }	
+	  }
+	fcntl (fd, F_SETFD, 0);
       }
-      fcntl(fd, F_SETFD, 0);
-    }
 
     if (slave > 2) close (slave);
 
@@ -102,72 +115,91 @@ void exec_target(char* argv[])
 
 struct termios oldtm;
 
-void setup_tty_attributes (void)
+void
+setup_tty_attributes (void)
 {
   struct termios tm;
 
-  if (tcgetattr (masterfd, &tm) == 0) {
-    /* Inhibit echo when executed under emacs/windows environment */
-    if (! isatty (0)) {
-      tm.c_iflag |= IGNCR;
-      tm.c_lflag &= ~ECHO;
+  if (tcgetattr (masterfd, &tm) == 0)
+    {
+      /* Inhibit echo when executed under emacs/windows environment */
+      if (! isatty (0))
+	{
+	  tm.c_iflag |= IGNCR;
+	  tm.c_lflag &= ~ECHO;
+	}
+      tcsetattr (masterfd, TCSANOW, &tm);
     }
-    tcsetattr (masterfd, TCSANOW, &tm);
-  }
-  if (tcgetattr (0, &oldtm) == 0) {
-    tm = oldtm;
-    tm.c_iflag &= ~(ICRNL | IXON | IXOFF);
-    tm.c_iflag |= IGNBRK;
-    tm.c_lflag &= ~(ICANON | ECHO | ISIG | ECHOE);
-    tcsetattr (0, TCSANOW, &tm);
-  }
+
+  if (tcgetattr (0, &oldtm) == 0)
+    {
+      tm = oldtm;
+      tm.c_iflag &= ~(ICRNL | IXON | IXOFF);
+      tm.c_iflag |= IGNBRK;
+      tm.c_lflag &= ~(ICANON | ECHO | ISIG | ECHOE);
+      tcsetattr (0, TCSANOW, &tm);
+    }
 }
 
-void restore_tty_attributes (void)
+void
+restore_tty_attributes (void)
 {
   tcsetattr (0, TCSANOW, &oldtm);
 }
 
-char* real_command_name (char* my_name)
+char * 
+real_command_name (char* my_name)
 {
   char *p;
 
   /* Assume mutlbyte characters do not occur here */
   p = strrchr (my_name, '/');
-  if (p == NULL) {
-    p = strrchr (my_name, '\\');
-    if (p == NULL) p = my_name;
-    else p++;
-  } else
+  if (p == NULL)
+    {
+      p = strrchr (my_name, '\\');
+
+      if (p == NULL)
+	p = my_name;
+      else
+	p++;
+    }
+  else
     p++;
+  
+  if (strcmp (p, MY_NAME) == 0)
+    {
+      return NULL;    /* I am invoked as explicit wrapper program */
+    }
 
-  if (strcmp (p, MY_NAME) == 0) {
-    return NULL;    /* invoke as explicit wrapper process */
-  }
-
-  if (strncmp (p, COMMAND_PREFIX, strlen (COMMAND_PREFIX)) != 0) {
-    fprintf (stderr, "Illegal program name format. \'%s\'\n", my_name);
-    exit (1);
-  }
+  if (strncmp (p, COMMAND_PREFIX, strlen (COMMAND_PREFIX)) != 0)
+    {
+      fprintf (stderr, "Illegal program name format. \'%s\'\n", my_name);
+      exit (1);
+    }
 
   return p + strlen (COMMAND_PREFIX);
 }
 
 /* Signal handler for convert SIGINT into ^C on pty */
 /* This seems not able to be done within cygwin POSIX framework */
-BOOL WINAPI ctrl_handler(DWORD e) {
-  switch (e) {
-  case CTRL_C_EVENT:
-    write (masterfd, "\003", 1);
-    return TRUE;
-  case CTRL_CLOSE_EVENT:
-    kill (child_pid, SIGKILL);
-    return FALSE;
-  }
-  return FALSE;
-}
+BOOL WINAPI
+ctrl_handler(DWORD e)
+{
+  switch (e)
+    {
+    case CTRL_C_EVENT:
+      write (masterfd, "\003", 1);
+      return TRUE;
 
-int main (int argc, char* argv[])
+    case CTRL_CLOSE_EVENT:
+      kill (child_pid, SIGKILL);
+      return FALSE;
+    }
+  return FALSE;
+}	
+
+int
+main (int argc, char* argv[])
 {
   struct termios oldtm;
   fd_set sel, sel0;
@@ -178,19 +210,21 @@ int main (int argc, char* argv[])
   /* Using Win32API to handle SIGINT.                              */
   SetConsoleCtrlHandler (ctrl_handler, TRUE);
 
-  if (argc < 1) {
-    fprintf (stderr, "Unable to get arg[0].");
-    exit (1);
-  }
+  if (argc < 1)
+    {
+      fprintf (stderr, "Unable to get arg[0].");
+      exit (1);
+    }
 
   newarg0 = real_command_name (argv[0]);
-  if (newarg0) {
-    argv[0] = newarg0;
-    exec_target (argv);     /* This sets globals masterfd, child_pid */
-  } else {
+  if (newarg0)
+    {
+      argv[0] = newarg0;
+      exec_target (argv);     /* This sets globals masterfd, child_pid */
+    }
+  else
     exec_target (argv + 1); /* This sets globals masterfd, child_pid */
-  }
-
+  
   setup_tty_attributes ();
 
   FD_ZERO (&sel0);
@@ -198,30 +232,35 @@ int main (int argc, char* argv[])
   FD_SET (0, &sel0);
 
   /* communication loop */
-  while(1) {
-    char buf[BUFSIZE];
-    int ret;
+  while (1)
+    {
+      char buf[BUFSIZE];
+      int ret;
+      
+      sel = sel0;
+      if (select (FD_SETSIZE, &sel, NULL, NULL, NULL) <= 0)
+	break;
 
-    sel = sel0;
-    if (select (FD_SETSIZE, &sel, NULL, NULL, NULL) <= 0) {
-      break;
+      if (FD_ISSET (masterfd, &sel))
+	{
+	  ret = read (masterfd, buf, BUFSIZE);
+	  if (ret > 0)
+	      write (1, buf, ret);
+	  else
+	    break;
+	}
+      else if (FD_ISSET (0, &sel))
+	{
+	  ret = read (0, buf, BUFSIZE);
+	  if (ret > 0)
+	      write (masterfd, buf, ret);
+	  else
+	    {
+	      FD_CLR (0, &sel0);
+	      close (masterfd);
+	    }
+	}	
     }
-
-    if (FD_ISSET (masterfd, &sel)) {
-      if ((ret = read (masterfd, buf, BUFSIZE)) > 0) {
-	write (1, buf, ret);
-      }
-      if (ret <= 0) break;
-    } else if (FD_ISSET(0, &sel)) {
-      if ((ret = read (0, buf, BUFSIZE)) > 0) {
-	write (masterfd, buf, ret);
-      }
-      if (ret <= 0) {
-	  FD_CLR (0, &sel0);
-	  close (masterfd);
-      }
-    }
-  }
 
   restore_tty_attributes ();
 
