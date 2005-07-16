@@ -57,7 +57,7 @@ exec_target(char* argv[])
 {
   int fd;
   int pid;
-  
+
   masterfd = open ("/dev/ptmx", O_RDWR);
   if (masterfd < 0)
     {
@@ -75,7 +75,7 @@ exec_target(char* argv[])
   if (pid == 0)
     {
       int slave;
-      
+
       setsid();
 
       slave = open (ptsname (masterfd), O_RDWR);
@@ -93,7 +93,7 @@ exec_target(char* argv[])
 	      {
 		perror ("Failed to dup2");
 		exit (1);
-	      }	
+	      }
 	  }
 	fcntl (fd, F_SETFD, 0);
       }
@@ -147,7 +147,7 @@ restore_tty_attributes (void)
   tcsetattr (0, TCSANOW, &oldtm);
 }
 
-char * 
+char *
 real_command_name (char* my_name)
 {
   char *p;
@@ -165,7 +165,7 @@ real_command_name (char* my_name)
     }
   else
     p++;
-  
+
   if (strcmp (p, MY_NAME) == 0)
     {
       return NULL;    /* I am invoked as explicit wrapper program */
@@ -196,7 +196,7 @@ ctrl_handler(DWORD e)
       return FALSE;
     }
   return FALSE;
-}	
+}
 
 int
 main (int argc, char* argv[])
@@ -224,7 +224,7 @@ main (int argc, char* argv[])
     }
   else
     exec_target (argv + 1); /* This sets globals masterfd, child_pid */
-  
+
   setup_tty_attributes ();
 
   FD_ZERO (&sel0);
@@ -236,7 +236,7 @@ main (int argc, char* argv[])
     {
       char buf[BUFSIZE];
       int ret;
-      
+
       sel = sel0;
       if (select (FD_SETSIZE, &sel, NULL, NULL, NULL) <= 0)
 	break;
@@ -259,7 +259,7 @@ main (int argc, char* argv[])
 	      FD_CLR (0, &sel0);
 	      close (masterfd);
 	    }
-	}	
+	}
     }
 
   restore_tty_attributes ();
