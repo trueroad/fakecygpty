@@ -274,6 +274,6 @@ main (int argc, char* argv[])
 
   kill (child_pid, SIGKILL);
   waitpid (child_pid, &status, 0);
-  return status;
+  return WEXITSTATUS (status);
 }
 
