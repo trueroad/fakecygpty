@@ -223,8 +223,15 @@ main (int argc, char* argv[])
       argv[0] = newarg0;
       exec_target (argv);     /* This sets globals masterfd, child_pid */
     }
+  else if (argc > 1)
+    {
+      exec_target (argv + 1); /* This sets globals masterfd, child_pid */
+    }
   else
-    exec_target (argv + 1); /* This sets globals masterfd, child_pid */
+    {
+      fprintf (stderr, "Unable to get arg[1].");
+      exit (1);
+    }
 
   setup_tty_attributes ();
 
