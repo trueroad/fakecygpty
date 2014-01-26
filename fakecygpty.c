@@ -128,6 +128,7 @@ setup_tty_attributes (void)
 	{
 	  tm.c_iflag |= IGNCR;
 	  tm.c_lflag &= ~ECHO;
+	  tm.c_oflag &= ~ONLCR;
 	}
       tcsetattr (masterfd, TCSANOW, &tm);
     }
